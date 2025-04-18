@@ -1,4 +1,4 @@
-## Regular Reentrancy Attack — Solidity Security Example
+## Regular Reentrancy Attack 
 
 This project demonstrates a classic **reentrancy attack** in Solidity smart contracts. A malicious contract repeatedly calls the vulnerable `withdrawAll()` function **before** the state (user balance) is updated, draining all the ETH from the vault.
 
