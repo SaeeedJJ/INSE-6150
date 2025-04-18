@@ -58,8 +58,6 @@ Using **Slither**, we detect the following:
 - Balance update occurs **after** the call
 - Balance state is accessible by reentrant call
 
-📸 Screenshot:
-> See `Slither analyze.JPG`
 
 ---
 
