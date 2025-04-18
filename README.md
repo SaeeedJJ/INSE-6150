@@ -1,124 +1,77 @@
-#  Cross-Contract Reentrancy Attack – InsecureMoonVault
+# Cross-Contract Reentrancy Attack
 
-This example demonstrates a **cross-contract reentrancy attack**, where two attacker contracts call each other recursively during the `fallback()` or `receive()` phase, exploiting a vulnerable vault contract that sends Ether before updating internal state.
+## Summary
 
----
-
-##  1. Concept
-
-Cross-contract reentrancy occurs when an attacker uses **multiple contracts that reenter each other** during an external call.
-
-In this case, `Attack1` and `Attack2` act as partners:
-- `Attack1` receives Ether from the vault, then calls `Attack2` to trigger another vault withdrawal
-- `Attack2` does the same back to `Attack1`
-- This loop continues until the vault is drained
+This project demonstrates a **cross-contract reentrancy attack**, where two attacker contracts exploit a vulnerability in a vault contract using token logic spread across multiple contracts. The attack allows them to recursively drain all Ether stored in the `InsecureMoonVault`.
 
 ---
 
-## 2. Contract Architecture
+## Vulnerable Design
 
-###  Vulnerable Contract: `InsecureMoonVault.sol`
-- Accepts deposits and allows withdrawals
-- Sends Ether using `call{value:}` before updating balances
-- Uses a `MoonToken` to mint and burn tokens per user
+The `InsecureMoonVault` interacts with a separate `MoonToken` contract. During the withdrawal process, the vault uses `msg.sender.call{value: balance}("")` before updating internal balances, and then calls `burnAccount()` in `MoonToken`, which is reentrant through `transfer()`.
 
-###  Attacker Contracts:
-- `Attack1.sol`: initiates the attack and reenters via `fallback()`
-- `Attack2.sol`: reenters back to `Attack1` to continue the loop
+### Key Mistakes:
 
-A shared token contract (`MoonToken.sol`) tracks fake balances and acts as the medium for mint/burn mechanics.
+- **Reentrancy enabled via another contract**: `MoonToken` is separate but interacts with `vault`.
+- **State updates after external calls**: Ether is sent and token logic is triggered before balance is cleared.
+- **No reentrancy guard** on `withdrawAll()` or `burnAccount()`.
 
 ---
 
-## 3. Attack Walkthrough
+## Attack Flow
 
-### Step-by-step:
-1. User1 and User2 deposit 3 and 2 ETH → vault holds 5 ETH
-2. `Attack1` deposits 1 ETH
-3. `Attack1.attackInit()` calls `withdrawAll()`
-4. Vault sends ETH → triggers `Attack1.receive()`
-5. `Attack1` calls `MoonToken.transfer()` to `Attack2`
-6. `Attack2.receive()` is triggered → calls `withdrawAll()` again
-7. This loop continues between both attackers
-
-Execution Output:
-```
-1st withdrawal by Attack1
-2nd withdrawal by Attack2
-3rd withdrawal by Attack1
-...
- All ETH stolen
-```
+1. Two contracts `Attack1` and `Attack2` are deployed.
+2. Each sets the other as its peer.
+3. The attack starts by calling `attackInit()` in `Attack1`.
+4. This triggers `withdrawAll()` and initiates a chain of callbacks between the two attacker contracts.
+5. Each fallback triggers the peer’s next withdrawal, repeating recursively.
+6. The entire vault balance is drained.
 
 ---
 
-## 4. Vulnerability Detection
+## Attack Output
 
-The vulnerability is caused by:
-- `call{value:}` before state update
-- Use of shared token `transfer()` that allows recursive calls
-- No reentrancy lock or state freeze between transfers
+![Attack Output](attack-output.png)
 
- This bypasses normal single-contract protection — because the entry points vary.
+- The vault’s balance went from `4 ETH` to `0`
+- `Attack1` stole `3 ETH`, `Attack2` stole `1 ETH`
 
 ---
 
-##  5. Fix and Prevention
+## Code Diagram
 
-### ReentrancyGuard
-```solidity
-function withdrawAll() external nonReentrant {
-    ...
-}
-```
+![Attack Structure](Cross%20contract%20Reentrancy%20diagram.png)
 
-### Lock state before sending funds
-```solidity
-uint256 balance = balances[msg.sender];
-balances[msg.sender] = 0; // ✅ effect first
-(bool sent, ) = msg.sender.call{value: balance}("");
-require(sent);
-```
+This diagram shows how the attacker alternates between contracts using the fallback to recurse into the vulnerable vault.
 
 ---
 
-##  6. How to Run the Demo
+## Slither Analysis
 
-### 🧪 Prerequisites:
-- Node.js & npm
-- Hardhat
+![Slither](Cross%20contract%20Reentrancy%20analyze.JPG)
+
+**Findings:**
+- Reentrancy in `withdrawAll()`
+- External low-level call before state change
+- Multiple functions (`burnAccount`, `transfer`) used in the reentrancy path
+- Several style and security issues flagged
+
+---
+
+## Fixed Version
+
+The fixed version applies:
+
+- `nonReentrant` modifier using `ReentrancyGuard`
+- Balance state update **before** sending ETH
+- Removed callback-unsafe token interactions during withdrawal
+
+See: [`FixedVault.sol`](Fixed%20Vault.sol)
+
+---
+
+## How to Run
 
 ```bash
-git clone https://github.com/your-repo/cross-contract-reentrancy
-cd cross-contract
-npm install
 npx hardhat compile
 npx hardhat run scripts/exec-attack.js
-```
-
----
-
-## 7. File Structure
-
-| File                  | Description                           |
-|-----------------------|---------------------------------------|
-| `InsecureMoonVault.sol` | Vulnerable vault contract             |
-| `Attack1.sol`         | First attacker, reenters `Attack2`    |
-| `Attack2.sol`         | Second attacker, reenters `Attack1`   |
-| `MoonToken.sol`       | Shared token contract used for trigger|
-| `scripts/exec-attack.js` | Hardhat deployment & test runner      |
-
----
-
-##  8. Screenshots
-
-- `Attack Output.png` – Shows alternating withdrawal loop
-- `Vulberable Structure.JPG` – (Optional) Add logic diagram
-
----
-
-##  Summary
-
-Cross-contract reentrancy shows how attackers can **split reentry logic** across contracts to bypass normal protection. Even if each function seems safe alone, their interaction causes an exploit.
-
-Always update state **before external calls**, and protect all public functions using a reentrancy guard.
