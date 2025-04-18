@@ -1,10 +1,10 @@
-# 🔁 Regular Reentrancy Attack – InsecureEtherVault
+# Regular Reentrancy Attack – InsecureEtherVault
 
 This example demonstrates a classic fallback-based **reentrancy attack** in Ethereum smart contracts, where a malicious contract repeatedly reenters the vulnerable function before the state is updated, allowing it to drain all ETH from the vault.
 
 ---
 
-## 🧠 1. Concept
+##  1. Concept
 
 Reentrancy occurs when a contract:
 1. Sends Ether using `call{value:}` to an external address
@@ -16,21 +16,21 @@ This recursive call can continue **until all funds are drained**.
 
 ---
 
-## 📦 2. Contract Architecture
+##  2. Contract Architecture
 
-### ✅ Vulnerable Contract: `InsecureEtherVault.sol`
+### Vulnerable Contract: `InsecureEtherVault.sol`
 - Allows users to deposit and withdraw Ether
 - Uses low-level `call{value:}` to send ETH
 - Updates balance **after** sending Ether → unsafe!
 
-### 🚨 Attacker Contract: `Attack.sol`
+### Attacker Contract: `Attack.sol`
 - Calls `vault.deposit()` with 1 ETH
 - Calls `vault.withdrawAll()` to start the loop
 - `receive()` is triggered and recursively re-calls `withdrawAll()` before balance is zeroed
 
 ---
 
-## 🧪 3. Attack Walkthrough
+##  3. Attack Walkthrough
 
 ### 🛠 Step-by-step:
 1. User1 deposits 3 ETH, User2 deposits 2 ETH → Vault holds 5 ETH
@@ -45,12 +45,12 @@ This recursive call can continue **until all funds are drained**.
 insecureEtherVault.withdrawAll() invoked  (initial)
 insecureEtherVault.withdrawAll() invoked  (reentrant x5)
 ```
-✅ Vault balance after attack: 0 ETH
-💰 Attacker balance after attack: 6 ETH
+ Vault balance after attack: 0 ETH
+ Attacker balance after attack: 6 ETH
 
 ---
 
-## 🧰 4. Vulnerability Detection
+##  4. Vulnerability Detection
 
 Using **Slither**, we detect the following:
 
@@ -63,9 +63,9 @@ Using **Slither**, we detect the following:
 
 ---
 
-## 🛡 5. Fix and Prevention
+##  5. Fix and Prevention
 
-### ✅ Checks-Effects-Interactions
+###  Checks-Effects-Interactions
 ```solidity
 function withdrawAll() external {
     uint256 balance = userBalances[msg.sender];
@@ -76,7 +76,7 @@ function withdrawAll() external {
 }
 ```
 
-### ✅ ReentrancyGuard
+###  ReentrancyGuard
 Use OpenZeppelin’s modifier to block reentry:
 ```solidity
 function withdrawAll() external nonReentrant {
@@ -86,7 +86,7 @@ function withdrawAll() external nonReentrant {
 
 ---
 
-## ▶️ 6. How to Run the Demo
+##  6. How to Run the Demo
 
 ### 🧪 Prerequisites:
 - Node.js & npm
@@ -113,7 +113,7 @@ npx hardhat run scripts/exec-attack.js
 
 ---
 
-## 📷 8. Screenshots
+## 8. Screenshots
 
 - `Vulberable Structure.JPG` – Shows how fallback reentry works
 - `Attack Resault.JPG` – Shows vault drained and attacker balance
@@ -121,7 +121,7 @@ npx hardhat run scripts/exec-attack.js
 
 ---
 
-## ✅ Summary
+## Summary
 
 This example shows the critical risk of writing to state **after** sending ETH using low-level calls. Reentrancy must be guarded using **Checks-Effects-Interactions** or external libraries like OpenZeppelin’s `ReentrancyGuard`.
 
