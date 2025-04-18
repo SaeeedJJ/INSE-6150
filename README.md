@@ -4,7 +4,7 @@
 
 This attack happens when a contract **sends Ether before updating its internal state**, like balances. If the receiver is a smart contract with a `fallback()` or `receive()` function, it can **reenter** the function and repeat the withdrawal before the balance is set to zero.
 
-> 💣 This was the same bug used in the 2016 DAO Hack.
+> This was the same bug used in the 2016 DAO Hack.
 
 ---
 
@@ -18,7 +18,7 @@ Here’s what happens during the exploit:
 4. Inside `receive()`, `withdrawAll()` is called again  
 5. This continues recursively before `balances[msg.sender] = 0` is reached
 
-📷 See diagram below from the exploit trace:
+ See diagram below from the exploit trace:
 
 ![Attack Flow](Vulberable%20Structure.JPG)
 
