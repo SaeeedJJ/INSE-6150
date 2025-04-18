@@ -2,28 +2,41 @@
 
 ## ✅ What is it?
 
-This attack happens when a vulnerable contract sends Ether to an external contract **before updating its internal state**. If the receiver is a contract with a `fallback()` or `receive()` function, it can call back into the vulnerable contract **before the balance is updated**.
+This attack happens when a contract **sends Ether before updating its internal state**, like balances. If the receiver is a smart contract with a `fallback()` or `receive()` function, it can **reenter** the function and repeat the withdrawal before the balance is set to zero.
+
+> 💣 This was the same bug used in the 2016 DAO Hack.
+
+---
 
 ## 🔍 How It Works
 
-- Victim contract calls `msg.sender.call{value: amount}("")`
-- Attacker contract’s `fallback()` is triggered
-- `fallback()` calls `withdrawAll()` again
-- The balance has not been reset → funds are drained recursively
+Here’s what happens during the exploit:
+
+1. The attacker sends 1 ETH to the vulnerable contract and calls `withdrawAll()`
+2. The contract sends ETH using `call{value: ...}`  
+3. This triggers the attacker's `receive()` function  
+4. Inside `receive()`, `withdrawAll()` is called again  
+5. This continues recursively before `balances[msg.sender] = 0` is reached
+
+📷 See diagram below from the exploit trace:
+
+![Attack Flow](Vulberable%20Structure.JPG)
+
+---
 
 ## ⚠️ Why It’s Dangerous
 
-Attackers can reenter multiple times, withdrawing more ETH than they deposited — until the contract is emptied.
+If unchecked, this allows an attacker to **withdraw more ETH than they deposited**, draining the entire contract balance. The vulnerable contract keeps thinking the attacker still has a balance.
 
-## 🛡️ How to Fix
+---
 
-- ✅ Use **Checks-Effects-Interactions** pattern
-- ✅ Apply `ReentrancyGuard` (`nonReentrant`) from OpenZeppelin
+## 🧪 Demonstration Output
 
-## ▶️ How to Run
+This is a real trace from running `npx hardhat run scripts/SimpleReentrancy/exec-attack.js`:
 
-```bash
-git clone <this-repo>
-cd regular-reentrancy
-npx hardhat compile
-npx hardhat run scripts/attack.js
+```plaintext
+insecureEtherVault.withdrawAll() invoked
+insecureEtherVault.withdrawAll() invoked
+insecureEtherVault.withdrawAll() invoked
+insecureEtherVault.withdrawAll() invoked
+insecureEtherVault.withdrawAll() invoked
