@@ -121,7 +121,7 @@ npx hardhat run scripts/exec-attack.js
 | `FixedEtherVault.sol`    | Secure version                         |
 | `Dependencies.sol`       | Helper functions (if any)              |
 | `exec-attack.js`         | Deployment + attack script             |
-| `*.JPG` / `*.png`        | Screenshots & diagrams for GitHub view |
+
 
 ---
 
