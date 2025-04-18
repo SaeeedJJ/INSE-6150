@@ -114,7 +114,7 @@ npx hardhat run scripts/exec-attack.js
 | `Attack.sol`           | Implements recursive claim via modifier|
 | `FixedAirdrop.sol`     | Secure airdrop contract                |
 | `exec-attack.js`       | Script to run the exploit              |
-| `*.JPG/PNG`            | Visual aids and outputs                |
+
 
 ---
 
