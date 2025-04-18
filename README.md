@@ -32,7 +32,7 @@ This recursive call can continue **until all funds are drained**.
 
 ##  3. Attack Walkthrough
 
-### 🛠 Step-by-step:
+### Step-by-step:
 1. User1 deposits 3 ETH, User2 deposits 2 ETH → Vault holds 5 ETH
 2. Attacker deposits 1 ETH
 3. Attacker calls `withdrawAll()`
@@ -40,7 +40,7 @@ This recursive call can continue **until all funds are drained**.
 5. `receive()` calls `withdrawAll()` again
 6. Repeats 5 times → All 6 ETH (5 from users + 1 from attacker) are drained
 
-📸 **Attack Trace Screenshot**
+ **Attack Trace Screenshot**
 ```
 insecureEtherVault.withdrawAll() invoked  (initial)
 insecureEtherVault.withdrawAll() invoked  (reentrant x5)
@@ -88,7 +88,7 @@ function withdrawAll() external nonReentrant {
 
 ##  6. How to Run the Demo
 
-### 🧪 Prerequisites:
+###  Prerequisites:
 - Node.js & npm
 - Hardhat
 
@@ -102,7 +102,7 @@ npx hardhat run scripts/exec-attack.js
 
 ---
 
-## 📄 7. File Structure
+##  7. File Structure
 
 | File                     | Description                        |
 |--------------------------|------------------------------------|
