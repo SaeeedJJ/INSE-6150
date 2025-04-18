@@ -1,126 +1,97 @@
-# Regular Reentrancy Attack – InsecureEtherVault
+## Regular Reentrancy Attack — Solidity Security Example
 
-This example demonstrates a classic fallback-based **reentrancy attack** in Ethereum smart contracts, where a malicious contract repeatedly reenters the vulnerable function before the state is updated, allowing it to drain all ETH from the vault.
-
----
-
-##  1. Concept
-
-Reentrancy occurs when a contract:
-1. Sends Ether using `call{value:}` to an external address
-2. That address is a contract with a `receive()` or `fallback()` function
-3. The fallback re-calls the vulnerable function
-4. The original state (like balances) hasn’t been updated yet
-
-This recursive call can continue **until all funds are drained**.
+This project demonstrates a classic **reentrancy attack** in Solidity smart contracts. A malicious contract repeatedly calls the vulnerable `withdrawAll()` function **before** the state (user balance) is updated, draining all the ETH from the vault.
 
 ---
 
-##  2. Contract Architecture
+### Vulnerable Scenario
 
-### Vulnerable Contract: `InsecureEtherVault.sol`
-- Allows users to deposit and withdraw Ether
-- Uses low-level `call{value:}` to send ETH
-- Updates balance **after** sending Ether → unsafe!
-
-### Attacker Contract: `Attack.sol`
-- Calls `vault.deposit()` with 1 ETH
-- Calls `vault.withdrawAll()` to start the loop
-- `receive()` is triggered and recursively re-calls `withdrawAll()` before balance is zeroed
+We have two contracts:
+- `InsecureEtherVault`: A vault contract allowing deposits and withdrawals.
+- `Attack`: An attacker contract exploiting the vulnerability via the `receive()` function.
 
 ---
 
-##  3. Attack Walkthrough
+### Attack Flow
 
-### Step-by-step:
-1. User1 deposits 3 ETH, User2 deposits 2 ETH → Vault holds 5 ETH
-2. Attacker deposits 1 ETH
-3. Attacker calls `withdrawAll()`
-4. ETH is sent → triggers `receive()` in `Attack.sol`
-5. `receive()` calls `withdrawAll()` again
-6. Repeats 5 times → All 6 ETH (5 from users + 1 from attacker) are drained
+![attack-diagram](reentrancy%201.png)
 
- **Attack Trace Screenshot**
-```
-insecureEtherVault.withdrawAll() invoked  (initial)
-insecureEtherVault.withdrawAll() invoked  (reentrant x5)
-```
- Vault balance after attack: 0 ETH
- Attacker balance after attack: 6 ETH
+1. `User1` deposits 3 ETH and `User2` deposits 2 ETH into the vault.
+2. The attacker deposits 1 ETH and immediately invokes `withdrawAll()`.
+3. The fallback `receive()` function is triggered upon ETH reception, which **recursively calls** `withdrawAll()` before the victim contract sets the user's balance to zero.
+4. This results in **multiple unauthorized withdrawals**, draining the full 5 ETH vault balance.
 
 ---
 
-##  4. Vulnerability Detection
+### Vulnerability Highlighted by Slither
 
-Using **Slither**, we detect the following:
+![slither-analysis](Slither%20analyze.JPG)
 
-- `call{value:}` inside `withdrawAll()` (line 19)
-- Balance update occurs **after** the call
-- Balance state is accessible by reentrant call
-
-
----
-
-##  5. Fix and Prevention
-
-###  Checks-Effects-Interactions
-```solidity
-function withdrawAll() external {
-    uint256 balance = userBalances[msg.sender];
-    require(balance > 0);
-    userBalances[msg.sender] = 0; // ✅ state update first
-    (bool sent, ) = msg.sender.call{value: balance}("");
-    require(sent);
-}
-```
-
-###  ReentrancyGuard
-Use OpenZeppelin’s modifier to block reentry:
-```solidity
-function withdrawAll() external nonReentrant {
-    ...
-}
-```
+The static analysis tool [Slither](https://github.com/crytic/slither) detects:
+- `msg.sender.call.value()` used before balance update.
+- Multiple reentrancy paths, including cross-function vulnerability.
+- Unsafe low-level calls and incorrect version usage.
 
 ---
 
-##  6. How to Run the Demo
+### Attack Output
 
-###  Prerequisites:
-- Node.js & npm
-- Hardhat
+![attack-output](attack-output.png)
+
+The attacker successfully:
+- Called `withdrawAll()` once intentionally.
+- Reentered **5 more times** recursively.
+- Drained the vault from `5 ETH` to `0 ETH`.
+
+---
+
+### How to Run
 
 ```bash
-git clone https://github.com/your-repo/reentrancy-demo
-cd regular-reentrancy
+# Clone and install dependencies
+git clone https://github.com/your-repo/reentrancy-attack-demo
+cd reentrancy-attack-demo
 npm install
+
+# Compile and execute
 npx hardhat compile
 npx hardhat run scripts/exec-attack.js
 ```
 
 ---
 
-##  7. File Structure
+### Project Structure
 
-| File                     | Description                        |
-|--------------------------|------------------------------------|
-| `InsecureEtherVault.sol`| Vulnerable vault contract          |
-| `Attack.sol`            | Attacker with reentrant fallback   |
-| `FixedVault.sol`        | Safe version using CEI / Guard     |
-| `scripts/exec-attack.js`| Hardhat deployment & attack runner |
-
----
-
-## 8. Screenshots
-
-- `Vulberable Structure.JPG` – Shows how fallback reentry works
-- `Attack Resault.JPG` – Shows vault drained and attacker balance
-- `Slither analyze.JPG` – Confirms vulnerability detection
+```
+.
+├── contracts/
+│   ├── Insecure.sol              # The vulnerable vault
+│   └── Attack.sol                # The reentrancy attacker
+├── scripts/
+│   └── exec-attack.js            # Deployment and execution logic
+├── images/
+    ├── attack-output.png
+    └── reentrancy 1.png
+```
 
 ---
 
-## Summary
+### Mitigation
 
-This example shows the critical risk of writing to state **after** sending ETH using low-level calls. Reentrancy must be guarded using **Checks-Effects-Interactions** or external libraries like OpenZeppelin’s `ReentrancyGuard`.
+Replace the call order in `withdrawAll()`:
 
-A small mistake in function order can allow attackers to drain all funds in seconds.
+```solidity
+userBalances[msg.sender] = 0; // move this before the external call
+(bool success, ) = msg.sender.call{value: balance}("");
+require(success, "Transfer failed");
+```
+
+Also consider using:
+- Reentrancy guards (`nonReentrant` modifier).
+- Checks-Effects-Interactions pattern.
+
+---
+
+### Conclusion
+
+This example shows how a simple misuse of the call order in Solidity can lead to devastating reentrancy vulnerabilities. It highlights why **state updates must precede external calls**.
